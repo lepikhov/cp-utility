@@ -2,7 +2,9 @@
 # KP utility
 
 Simple utility for KDS and BTU settings
+
 KDS and BTU are equipment of controlled points  of the centralized dispatching system "SETUN"
+
 [About DS "SETUN"...](https://dcsetun.ru) 
 
 ## Installation
