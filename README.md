@@ -35,7 +35,7 @@ Just open in your Browser
 #### What browsers is it compatible with?
 
 Compatible with all browsers that support Web Serial API.
-[Read more](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API) 
+[Check your browser compability](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API#browser_compatibility) 
 
 
 

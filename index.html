@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <title>KP utility</title>
+  <title>CP utility</title>
   <link type="text/css" rel="stylesheet" href="css/style.css">
   <link type="image/x-icon" rel="icon" href="./favicon.ico">
   <link type="text/css" rel="stylesheet" href="css/materialize/materialize.min.css" media="screen,projection" />
@@ -14,29 +14,49 @@
 <body>
   <script type="text/javascript" src="js/jquery/jquery-3.7.1.min.js"></script>
   <script type="text/javascript" src="js/materialize/materialize.min.js"></script>
-  <script type="text/javascript"src="js/index.js"></script>
+  <script type="text/javascript" src="js/config.js"></script>
+  <script defer type="text/javascript" src="js/serial.js"></script>
+  <script defer type="text/javascript" src="js/uap.js"></script>  
+  <script defer type="text/javascript" src="js/app.js"></script>
+
   <main>
-    <h4>Настройка блоков КДС и БТУ ДЦ "СЕТУНЬ"</h4>
-    <div class="divider"></div>
-    <p></p>
-    <div class="row">
-      <div class="container col s4">
-        <a class="waves-effect waves-light btn-large lime darken-4 button1 " onclick="start()">
-          Выбрать COM порт
-        </a>
+    <div class="card" id="app">
+
+      <h4>Настройка блоков КДС и БТУ ДЦ "СЕТУНЬ"</h4>
+
+      <div class="row">
+
+        <div class="container col s4">
+          <a class="waves-effect waves-light btn-large lime darken-4 button1 " id="openPort">
+            Выбрать COM порт
+          </a>
+        </div>
+
+        <div class="input-field col s4">
+          <input placeholder="Адрес, например 0x1A или 26" 
+                id="address" type="text" class="validate"
+                pattern="^(0x[0-9a-fA-F]{1,2}|0X[0-9a-fA-F]{1,2}|[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
+          />
+          <label for="address">Адрес устройства</label>
+        </div>
+
+        <div class="container col s4">
+          <a class="waves-effect waves-light btn-large lime darken-4 button1 " id="writeAddress">
+            Записать адрес
+          </a>
+        </div>
+
       </div>
-      <div class="input-field col s4">
-        <input placeholder="Адрес устройства" id="address" type="text" class="validate">
-        <label for="address">Адрес устройства</label>
+
+      <div class="status-bar">
+        <div id="statusIndicator" class="status-indicator"></div>
+        <span id="statusText" class="status-text">Порт не выбран</span>
       </div>
-      <div class="container col s4">
-        <a class="waves-effect waves-light btn-large lime darken-4 button1 " onclick="">
-          Записать адрес
-        </a>
-      </div>
+
     </div>
-    <div class="divider"></div>
+
   </main>
+
 </body>
 
 </html>
