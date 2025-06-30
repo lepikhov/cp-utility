@@ -1,5 +1,3 @@
-
-
 class SerialPortHandler {
     constructor(options, checkEndOfTransmission, onConnect, onDisconnect, readTimeOut = 1000) {
         this.checkEndOfTransmission = checkEndOfTransmission
