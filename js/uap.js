@@ -113,12 +113,12 @@ class UAP {
    * @param {number} crc - Current CRC value
    * @returns {number} - Updated CRC value
    */
-  crc16_calc(data, crc) {
-    crc ^= (data << 8);
+  crc16Calc(data, crc) {
+    crc ^= (data << 8)
     for (let i = 0; i < 8; i++) {
-      crc = crc & 0x8000 ? ((crc << 1) ^ UAPc.CRC_POLY) : (crc << 1);
+      crc = crc & 0x8000 ? ((crc << 1) ^ UAPc.CRC_POLY) : (crc << 1)
     }
-    return crc & 0xFFFF; // Ensure 16-bit value
+    return crc & 0xFFFF // Ensure 16-bit value
   }
 
   /**
@@ -127,21 +127,21 @@ class UAP {
   * @param {number} init - Initial CRC value
   * @returns {Uint8Array} - New buffer with appended CRC (original data + 2 CRC bytes)
   */
-  crc16_calc_buff(buff, init) {
+  crc16CalcBuff(buff, init) {
     let crc = init;
     for (let i = 0; i < buff.length; i++) {
-      crc = this.crc16_calc(buff[i], crc);
+      crc = this.crc16Calc(buff[i], crc)
     }
 
     // Create new buffer with extra 2 bytes for CRC
-    const result = new Uint8Array(buff.length + 2);
-    result.set(buff); // Copy original data
+    const result = new Uint8Array(buff.length + 2)
+    result.set(buff) // Copy original data
 
     // Append CRC (big-endian)
-    result[buff.length] = (crc >> 8) & 0xFF;    // High byte
-    result[buff.length + 1] = crc & 0xFF;       // Low byte
+    result[buff.length] = (crc >> 8) & 0xFF    // High byte
+    result[buff.length + 1] = crc & 0xFF       // Low byte
 
-    return result;
+    return result
   }
 
   /**
@@ -150,27 +150,35 @@ class UAP {
    * @param {number} init - Initial CRC value (same as used for calculation)
    * @returns {boolean} - True if CRC is valid, false otherwise
    */
-  crc16_check_buff(buff, init) {
+  crc16CheckBuff(buff, init) {
     // Minimum buffer length should be 2 bytes (CRC only)
-    if (buff.length < 2) return false;
+    if (buff.length < 2) return false
 
     // Calculate CRC for all bytes except the last 2 (CRC bytes)
-    const dataLength = buff.length - 2;
-    let crc = init;
+    const dataLength = buff.length - 2
+    let crc = init
 
     for (let i = 0; i < dataLength; i++) {
-      crc = crc16_calc(buff[i], crc);
+      crc = this.crc16Calc(buff[i], crc)
     }
 
     // Extract the stored CRC from the last 2 bytes (big-endian)
-    const storedCRC = (buff[dataLength] << 8) | buff[dataLength + 1];
+    const storedCRC = (buff[dataLength] << 8) | buff[dataLength + 1]
 
     // CRC is valid if the calculated value matches the stored one
-    return (crc & 0xFFFF) === storedCRC;
+    return (crc & 0xFFFF) === storedCRC
   }
 
+  /** 
+  * Message adaptatiom for UAP protocol:
+  * 1. Add Start of Frame (BYTE_B, BYTE_H)  
+  * 2. If the message contains the symbol BYTE_B, add an additional symbol BYTE_B before it
+  * 3. Add End of Frame (BYTE_B, BYTE_K)
+  * @param {Uint8Array} data - original message
+  * @returns {Uint8Array} - extended message
+  */
   prepareTxMessage(data) {
-    var buf = new Array()
+    let buf = new Array()
 
     buf.push(UAPc.BYTE_B)
     buf.push(UAPc.BYTE_H)
@@ -188,32 +196,198 @@ class UAP {
     return new Uint8Array(buf)
   }
 
+  getRxMessage(data) {
+    let buf = new Array()
+    let error = false
+    let i
 
-  async writeAddress() {
+    for (i = 0; i < data.length - 1; i++) {
+      if (data[i] === UAPc.BYTE_B && data[i + 1] === UAPc.BYTE_H) {
+        break
+      }
+    }
 
-    /*
-    // identification
-        const data = new Uint8Array([
-          0x00, // recipient address (broadcast)
-          0xFE, // sender address
-          UAPc.COMMAND_IDENTIFICATION, // packet type
-          0x01, // number of block
-          0x01, // quantity of blocks
-        ]) 
-    */
+    if (i > data.length - 2) {
+      return { error: true, data: null }
+    }
+
+    i += 2
+
+    for (; i < data.length - 2; i++) {
+      if (data[i] == this.BYTE_B) {
+        ++i
+      }
+      buf.push(data[i])
+    }
+
+    return { error: error, data: new Uint8Array(buf) }
+  }
+
+  // identification command
+  async commandIdentification(recipientAddress, senderAddress) {
+
+    this.error = null
+
+    let data = new Uint8Array([
+      recipientAddress, // recipient address (0x0 for broadcast)
+      senderAddress, // sender address
+      UAPc.COMMAND_IDENTIFICATION, // packet type
+      0x01, // number of block
+      0x01, // quantity of blocks
+    ])
+
+    try {
+      data = await this.port.transAct(this.prepareTxMessage(this.crc16CalcBuff(data, UAPc.CRC_INIT)))
+    }
+    catch (error) {
+      this.error = 'Identification command->' + error
+      throw Error(this.error)
+    }
+
+    let result = this.getRxMessage(data)
+
+    if (result.error) {
+      this.error = 'Identification command->Package'
+      throw Error(this.error)
+    }
 
 
-    // MAC
-    const data = new Uint8Array([
-      0x00, // recipient address (broadcast)
-      0xFE, // sender address
+    if (!this.crc16CheckBuff(result.data, UAPc.CRC_INIT)) {
+      this.error = 'Identification command->CRC'
+      throw Error(this.error)
+    }
+
+    if (result.data.length != 12) {
+      this.error = 'Identification command->Package Length'
+      throw Error(this.error)
+    }
+
+    return {
+      manufacturer: result.data[5],
+      type: result.data[6],
+      version: result.data[7],
+      maxPackageSize: result.data[8],
+      maxWaitTime: result.data[9]
+    }
+
+  }
+
+  // MAC command
+  async commandMAC(recipientAddress, senderAddress) {
+
+    this.error = null
+
+    let data = new Uint8Array([
+      recipientAddress, // recipient address (0x0 for broadcast)
+      senderAddress, // sender address
       UAPc.COMMAND_DATA_REQUEST, // packet type
       0x01, // number of block
       0x01,  // quantity of blocks
       UAPc.COMMAND_ID_MAC, //
     ])
 
-    await this.port.transAct(this.prepareTxMessage(this.crc16_calc_buff(data, UAPc.CRC_INIT)))
+    try {
+      data = await this.port.transAct(this.prepareTxMessage(this.crc16CalcBuff(data, UAPc.CRC_INIT)))
+    }
+    catch (error) {
+      this.error = 'MAC command->' + error
+      throw Error(this.error)
+    }
+
+    let result = this.getRxMessage(data)
+
+    if (result.error) {
+      this.error = 'MAC command->Package'
+      throw Error(this.error)
+    }
+
+
+    if (!this.crc16CheckBuff(result.data, UAPc.CRC_INIT)) {
+      this.error = 'MAC command->CRC'
+      throw Error(this.error)
+    }
+
+    if (result.data.length != 14) {
+      this.error = 'MAC command->Package Length'
+      throw Error(this.error)
+    }
+
+    return {
+      MAC: result.data.subarray(6, 12)
+    }
+
+  }
+
+  // Write Config command
+  async commandWriteConfig(recipientAddress, senderAddress, MAC, config) {
+
+    this.error = null
+
+    let data = new Uint8Array([
+      recipientAddress, // recipient address (0x0 for broadcast)
+      senderAddress, // sender address
+      UAPc.COMMAND_DATA_REQUEST, // packet type
+      0x01, // number of block
+      0x01,  // quantity of blocks
+      UAPc.COMMAND_ID_WRITE_CONFIGURATION, //
+    ])
+
+    data = Uint8Array.from([...data, ...MAC, ...config])
+
+    try {
+      data = await this.port.transAct(this.prepareTxMessage(this.crc16CalcBuff(data, UAPc.CRC_INIT)))
+    }
+    catch (error) {
+      this.error = 'Write Config command->' + error
+      throw Error(this.error)
+    }
+
+    let result = this.getRxMessage(data)
+
+    if (result.error) {
+      this.error = 'Write Config command->Package'
+      throw Error(this.error)
+    }
+
+
+    if (!this.crc16CheckBuff(result.data, UAPc.CRC_INIT)) {
+      this.error = 'Write Config command->CRC'
+      throw Error(this.error)
+    }
+
+    if (result.data.length != 8) {
+      this.error = 'Write Config command->Package Length'
+      throw Error(this.error)
+    }
+
+  }
+
+  async writeAddress(address) {
+
+    let MAC
+    let config = new Uint8Array(14)
+    config[0] = address&0xff
+    config = this.crc16CalcBuff(config, 0xFFFF)
+
+    this.error = null
+
+
+    try {
+      MAC = (await this.commandMAC(0x00, 0xFE)).MAC
+    }
+    catch (error) {
+      this.error = 'UAP->' + error
+      throw Error(this.error)
+    }
+
+    try {
+      await this.commandWriteConfig(address, 0xFE, MAC, config)
+    }
+    catch (error) {
+      this.error = 'UAP->' + error
+      throw Error(this.error)
+    }    
+
 
   }
 

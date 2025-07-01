@@ -33,17 +33,17 @@ class Application {
         this.#updateStatus('Запись адреса ' + this.$address.value + ' ...', false)
 
         try {
-            await this.uap.writeAddress()
+            await this.uap.writeAddress(+this.$address.value)
         }
         catch (error){
             throw error
         }
         finally {
-            if (this.serialPort.error == null) {
+            if (this.uap.error == null) {
                 this.#updateStatus('Адрес ' + this.$address.value + ' успешно записан', true)
             }
             else {
-                this.#updateStatus('Произошла ошибка: ' + this.serialPort.error, false, true)
+                this.#updateStatus('Произошла ошибка: ' + this.uap.error, false, true)
             }
             this.$writeAddressButton.removeAttribute("disabled")
             this.$openPortButton.removeAttribute("disabled")
