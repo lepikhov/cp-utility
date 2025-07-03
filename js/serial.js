@@ -1,6 +1,5 @@
 class SerialPortHandler {
-    constructor(options, checkEndOfTransmission, onConnect, onDisconnect, readTimeOut = 1000) {
-        this.checkEndOfTransmission = checkEndOfTransmission
+    constructor(options, onConnect, onDisconnect, readTimeOut = 1000) {
         this.onConnect = onConnect
         this.onDisconnect = onDisconnect
         this.options = options
@@ -12,27 +11,22 @@ class SerialPortHandler {
         this.#setupListeners()
     }
 
-    setReadTimeOutFlag(flag) {
-        this.isReadTimeOut = flag
-    }
-
     async open() {
-        this.error = null
         if ("serial" in navigator) {
             // The Web Serial API is supported.
             // Prompt user to select any serial port 
-            {
-                try {
-                    const port = await navigator.serial.requestPort()
-                    await port.open(this.options)
+            try {
+                const port = await navigator.serial.requestPort()
+                await port.open(this.options)
 
-                    this.port = port
-                    this.isOpened = true
+                this.port = port
+                this.isOpened = true
 
-                    return this.port.getInfo()
-                } catch (error) {
-                    this.error = error
-                }
+                return this.port.getInfo()
+            } 
+            catch (error) {
+                this.error = error                
+                throw error
             }
         }
         else {
@@ -58,10 +52,10 @@ class SerialPortHandler {
             throw error
         } finally {
             writer.releaseLock()
-        }    
+        }
     }
 
-    async read() {
+    async read(checkEndOfTransmission) {
 
         this.error = null
         const timeoutPromise = new Promise((_, reject) => {
@@ -75,7 +69,7 @@ class SerialPortHandler {
             try {
                 while (true) {
 
-                    const {value, done} = await Promise.race([
+                    const { value, done } = await Promise.race([
                         reader.read(),
                         timeoutPromise
                     ])
@@ -83,12 +77,14 @@ class SerialPortHandler {
 
                     chunks = Uint8Array.from([...chunks, ...value])
 
+                    /* DEBUG: received chunks in hex
                     const hexString = [...chunks]
-                    .map(byte => byte.toString(16).padStart(2, '0'))
-                    .join(' ')
+                        .map(byte => byte.toString(16).padStart(2, '0'))
+                        .join(' ')
                     console.log(hexString)
+                    */
 
-                    if (done || this.checkEndOfTransmission(chunks)) {
+                    if (done || checkEndOfTransmission(chunks)) {
                         reader.releaseLock()
                         break
                     }
@@ -103,9 +99,9 @@ class SerialPortHandler {
         }
     }
 
-    async transAct(data) {
+    async transAct(data, checkEndOfTransmission) {
         await this.write(data)
-        return await this.read()
+        return await this.read(checkEndOfTransmission)
     }
 
     #setupListeners() {

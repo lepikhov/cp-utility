@@ -2,22 +2,7 @@
 UAP protocol implementation 
 */
 
-/**
- * Checks for the presence of the end-of-transmission sequence (0x7E, 0xF0) in a UInt8Array.
- * @param {UInt8Array} data - The array of bytes to search in.
- * @returns {number|null} The index of the first occurrence of the sequence or null if not found.
- */
-function checkEndOfTransmission(data) {
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[i] === 0x7E && data[i + 1] === 0xF0) {
-      return i
-    }
-  }
-  return null
-}
-
 // UAP constants
-
 class UAPc {
 
   // protocol frame bytes
@@ -31,6 +16,9 @@ class UAPc {
 
   // CRC-16 Init
   static get CRC_INIT() { return 0x0000 }
+
+  // CRC-16 Init for config message
+  static get CRC_INIT_FOR_CONFIG() { return 0xFFFF }
 
   // COMMANDS TYPES  
   static get COMMAND_IDENTIFICATION() { return 0x80 }
@@ -104,6 +92,20 @@ class UAP {
 
   setPort(port) {
     this.port = port
+  }
+
+  /**
+ * Checks for the presence of the end-of-transmission sequence (0x7E, 0xF0) in a UInt8Array.
+ * @param {UInt8Array} data - The array of bytes to search in.
+ * @returns {number|null} The index of the first occurrence of the sequence or null if not found.
+ */
+  checkEndOfTransmission(data) {
+    for (let i = 0; i < data.length - 1; i++) {
+      if (data[i] === UAPc.BYTE_B && data[i + 1] === UAPc.BYTE_K) {
+        return i
+      }
+    }
+    return null
   }
 
 
@@ -237,7 +239,8 @@ class UAP {
     ])
 
     try {
-      data = await this.port.transAct(this.prepareTxMessage(this.crc16CalcBuff(data, UAPc.CRC_INIT)))
+      data = await this.port.transAct(this.prepareTxMessage(this.crc16CalcBuff(data, UAPc.CRC_INIT)),
+        this.checkEndOfTransmission)
     }
     catch (error) {
       this.error = 'Identification command->' + error
@@ -287,7 +290,8 @@ class UAP {
     ])
 
     try {
-      data = await this.port.transAct(this.prepareTxMessage(this.crc16CalcBuff(data, UAPc.CRC_INIT)))
+      data = await this.port.transAct(this.prepareTxMessage(this.crc16CalcBuff(data, UAPc.CRC_INIT)),
+        this.checkEndOfTransmission)
     }
     catch (error) {
       this.error = 'MAC command->' + error
@@ -335,7 +339,8 @@ class UAP {
     data = Uint8Array.from([...data, ...MAC, ...config])
 
     try {
-      data = await this.port.transAct(this.prepareTxMessage(this.crc16CalcBuff(data, UAPc.CRC_INIT)))
+      data = await this.port.transAct(this.prepareTxMessage(this.crc16CalcBuff(data, UAPc.CRC_INIT)),
+        this.checkEndOfTransmission)
     }
     catch (error) {
       this.error = 'Write Config command->' + error
@@ -366,8 +371,8 @@ class UAP {
 
     let MAC
     let config = new Uint8Array(14)
-    config[0] = address&0xff
-    config = this.crc16CalcBuff(config, 0xFFFF)
+    config[0] = address
+    config = this.crc16CalcBuff(config, UAPc.CRC_INIT_FOR_CONFIG)
 
     this.error = null
 
@@ -386,7 +391,7 @@ class UAP {
     catch (error) {
       this.error = 'UAP->' + error
       throw Error(this.error)
-    }    
+    }
 
 
   }

@@ -1,8 +1,14 @@
 class Application {
     constructor(root) {
 
-        this.serialPort = null
-        this.uap = null
+        this.serialPort = new SerialPortHandler(
+            { baudRate: serialSettings.baudRate }, // options
+            () => {this.#connectHandler()}, // connectHandler
+            () => {this.#disconnectHandler()} // disconnectHandler
+        )
+
+        this.uap = new UAP(this.serialPort)
+
         this.addressIsValid = false
 
         /**
@@ -52,26 +58,22 @@ class Application {
     }
 
     async #openPortHandler() {
-        if (!this.serialPort) {
-            this.serialPort = new SerialPortHandler(
-                { baudRate: serialSettings.baudRate }, // options
-                checkEndOfTransmission, // checkEndOfTransmission
-                () => this.#connectHandler(), // connectHandler
-                () => this.#disconnectHandler() // disconnectHandler
-            )
+        try {
+            if (this.serialPort.isOpened) await this.serialPort.close()
+            await this.serialPort.open()
         }
+        catch (error) {
+            this.serialPort.error = error
+        }    
 
-
-        this.serialPort.open()
-        if (!this.serialPort.error) {
+        if (!this.serialPort.isOpened) {
+            this.#updateStatus("Порт не подключен: " + this.serialPort.error, false, true)
+        }        
+        else {
             this.#updateStatus("Порт подключен", true)
             if (this.addrssIsValid) this.$writeAddressButton.removeAttribute("disabled")
 
-            if (!this.uap) this.uap = new UAP(this.serialPort)
-            else this.uap.setPort(this.serialPort)
-        }
-        else this.#updateStatus(this.serialPort.error, false, true)
-
+        }    
     }
 
     async #addressHandler(e) {
